@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marea BCS · Luna & Costa</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+    
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+    <div class="sidebar">
+        <div class="sidebar-head">
+            <div class="eyebrow">Baja California Sur</div>
+            <h1>Marea BCS · Luna &amp; Costa</h1>
+            <div class="sub">Simulación lunar, predicción de marea y visor de capas GIS</div>
+        </div>
+        <div class="tabs">
+            <button class="tab active" data-tab="luna">Luna</button>
+            <button class="tab" data-tab="marea">Mareas</button>
+            <button class="tab" data-tab="capas">Capas</button>
+        </div>
+
+        <div class="panel" id="panel-luna">
+            <div class="field">
+                <label>Fecha y hora (local del puerto)</label>
+                <input type="datetime-local" id="moonDatetime">
+            </div>
+            <div class="field">
+                <label>Punto de referencia</label>
+                <select id="moonPort"></select>
+            </div>
+
+            <div class="moon-stage">
+                <svg id="moonIcon" width="76" height="76" viewBox="0 0 100 100"></svg>
+                <div class="moon-readout">
+                    <div class="phase-name" id="moonPhaseName">—</div>
+                    <div class="illum" id="moonIllum">—</div>
+                    <div class="sub" id="moonAge">—</div>
+                </div>
+            </div>
+
+            <div class="grid2">
+                <div class="stat"><div class="k">Altitud</div><div class="v" id="moonAlt">—</div></div>
+                <div class="stat"><div class="k">Azimut</div><div class="v" id="moonAz">—</div></div>
+                <div class="stat"><div class="k">Orto lunar</div><div class="v" id="moonRise">—</div></div>
+                <div class="stat"><div class="k">Ocaso lunar</div><div class="v" id="moonSet">—</div></div>
+                <div class="stat"><div class="k">Distancia</div><div class="v" id="moonDist">—</div></div>
+                <div class="stat"><div class="k">Próxima luna llena</div><div class="v" id="moonNextFull">—</div></div>
+            </div>
+
+            <div class="note">
+                Cálculo con fórmulas astronómicas de baja precisión (posición geocéntrica de la Luna,
+                error típico &lt; 0.3°). Suficiente para planeación general; no usar para navegación de precisión.
+            </div>
+        </div>
+
+        <div class="panel hidden" id="panel-marea">
+            <div class="field">
+                <label>Puerto / estación</label>
+                <select id="tidePort"></select>
+            </div>
+            <div class="field">
+                <label>Fecha de inicio</label>
+                <input type="date" id="tideDate">
+            </div>
+
+            <div class="grid2">
+                <div class="stat"><div class="k">Altura actual</div><div class="v" id="tideNow">—</div></div>
+                <div class="stat"><div class="k">Tendencia</div><div class="v" id="tideTrend">—</div></div>
+                <div class="stat"><div class="k">Próxima marea alta</div><div class="v" id="tideNextHigh">—</div></div>
+                <div class="stat"><div class="k">Próxima marea baja</div><div class="v" id="tideNextLow">—</div></div>
+            </div>
+
+            <div class="chart-wrap"><canvas id="tideChart" height="170"></canvas></div>
+
+            <h3 style="font-size:13px;color:var(--plata);margin-bottom:8px;">Constituyentes armónicos</h3>
+            <div class="const-labels"><div>Nombre</div><div>Amp (m)</div><div>Fase (°)</div><div>Período (h)</div><div></div></div>
+            <div id="constList"></div>
+            <div style="display:flex;gap:8px;margin-top:8px;">
+                <button class="btn secondary" id="addConst" style="flex:1;">+ Constituyente</button>
+                <label class="btn secondary" style="flex:1;text-align:center;cursor:pointer;">
+                    Importar CSV
+                    <input type="file" id="constCsv" accept=".csv" style="display:none;">
+                </label>
+            </div>
+            <div class="note" style="margin-top:12px;">
+                Los valores por puerto son <strong>ilustrativos</strong>. Sustituye aquí las amplitudes, fases y niveles medios oficiales (Z0, M2, S2, N2, K1, O1…) del anuario correspondiente para obtener una predicción calibrada real.
+            </div>
+        </div>
+
+        <div class="panel hidden" id="panel-capas">
+            <div class="drop" id="dropZone">
+                <div class="big">Arrastra o selecciona archivos</div>
+                <div class="small">GeoJSON · KML · SHP (.zip) · GeoPackage (.gpkg)</div>
+                <input type="file" id="fileInput" multiple accept=".geojson,.json,.kml,.zip,.gpkg" style="display:none;">
+            </div>
+            <div class="stat" style="margin-bottom:12px;">
+                <div class="k">Contorno de marea activo</div>
+                <div class="v" id="contornoActivoNombre" style="font-size:13px;">—</div>
+            </div>
+            <button class="btn secondary" id="resetContorno" style="width:100%;margin-bottom:14px;">
+                Restablecer contorno esquemático de BCS
+            </button>
+            <div id="layerStatus"></div>
+            <div id="layerList"></div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+                <button class="btn secondary" id="fitAll" style="flex:1;">Encuadrar todo</button>
+                <button class="btn secondary" id="clearAll" style="flex:1;">Quitar todas</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="map-area"><div id="map"></div></div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
