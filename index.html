@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marea BCS · Luna &amp; Costa</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+<style>
+:root{
+  --abismo:#071722;
+  --panel:#0f2436;
+  --panel2:#123047;
+  --linea:#1c3b52;
+  --plata:#e7e3d8;
+  --plata-suave:#b9c4c9;
+  --marea:#3aa8a0;
+  --marea-alta:#e3b34f;
+  --alerta:#d9704f;
+  --texto:#dce6ea;
+  --texto-suave:#8fa4ae;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;height:100%;background:var(--abismo);color:var(--texto);
+  font-family:'Segoe UI',system-ui,-apple-system,sans-serif;}
+h1,h2,h3{font-family:Georgia,'Times New Roman',serif;font-weight:600;letter-spacing:.02em;margin:0;}
+.app{display:flex;height:100vh;width:100vw;overflow:hidden;}
+.sidebar{width:400px;min-width:340px;background:var(--panel);display:flex;flex-direction:column;
+  border-right:1px solid var(--linea);}
+.sidebar-head{padding:18px 20px 12px;border-bottom:1px solid var(--linea);}
+.sidebar-head .eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--marea);}
+.sidebar-head h1{font-size:20px;color:var(--plata);margin-top:2px;}
+.sidebar-head .sub{font-size:12px;color:var(--texto-suave);margin-top:4px;}
+.tabs{display:flex;border-bottom:1px solid var(--linea);}
+.tab{flex:1;padding:11px 6px;text-align:center;font-size:12.5px;letter-spacing:.04em;
+  color:var(--texto-suave);cursor:pointer;background:none;border:none;border-bottom:2px solid transparent;
+  font-family:inherit;}
+.tab.active{color:var(--plata);border-bottom-color:var(--marea);background:var(--panel2);}
+.tab:hover{color:var(--plata);}
+.panel{flex:1;overflow-y:auto;padding:18px 20px 30px;}
+.panel::-webkit-scrollbar{width:8px;}
+.panel::-webkit-scrollbar-thumb{background:var(--linea);border-radius:4px;}
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:11.5px;color:var(--texto-suave);margin-bottom:5px;
+  text-transform:uppercase;letter-spacing:.06em;}
+input,select{width:100%;background:var(--abismo);border:1px solid var(--linea);color:var(--texto);
+  padding:8px 10px;border-radius:5px;font-size:13.5px;font-family:inherit;}
+input:focus,select:focus{outline:none;border-color:var(--marea);}
+button.btn{background:var(--marea);border:none;color:#06181a;font-weight:600;padding:9px 14px;
+  border-radius:5px;cursor:pointer;font-size:13px;letter-spacing:.02em;}
+button.btn:hover{background:#4bc0b7;}
+button.btn.secondary{background:transparent;border:1px solid var(--linea);color:var(--texto);}
+button.btn.secondary:hover{border-color:var(--marea);color:var(--marea);}
+.moon-stage{display:flex;align-items:center;gap:18px;background:var(--panel2);border:1px solid var(--linea);
+  border-radius:10px;padding:16px;margin-bottom:16px;}
+.moon-readout{flex:1;}
+.moon-readout .phase-name{font-family:Georgia,serif;font-size:17px;color:var(--plata);}
+.moon-readout .illum{font-size:26px;color:var(--marea);font-weight:700;margin:2px 0 4px;}
+.moon-readout .sub{font-size:11.5px;color:var(--texto-suave);}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
+.stat{background:var(--panel2);border:1px solid var(--linea);border-radius:8px;padding:10px 12px;}
+.stat .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--texto-suave);}
+.stat .v{font-size:16px;color:var(--plata);margin-top:3px;font-variant-numeric:tabular-nums;}
+.note{font-size:11.5px;color:var(--texto-suave);line-height:1.5;background:var(--panel2);
+  border-left:3px solid var(--marea-alta);padding:9px 12px;border-radius:4px;margin-top:6px;}
+.chart-wrap{background:var(--panel2);border:1px solid var(--linea);border-radius:10px;padding:14px 10px 8px;
+  margin-bottom:14px;}
+.const-row{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr auto;gap:6px;align-items:center;margin-bottom:6px;}
+.const-row input{padding:5px 6px;font-size:12px;}
+.const-row .del{background:none;border:none;color:var(--alerta);cursor:pointer;font-size:15px;padding:0;}
+.const-labels{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr auto;gap:6px;font-size:10px;
+  color:var(--texto-suave);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;}
+.drop{border:1.5px dashed var(--linea);border-radius:10px;padding:26px 14px;text-align:center;
+  cursor:pointer;transition:.15s;margin-bottom:14px;}
+.drop:hover,.drop.over{border-color:var(--marea);background:rgba(58,168,160,.06);}
+.drop .big{font-size:13.5px;color:var(--plata);}
+.drop .small{font-size:11px;color:var(--texto-suave);margin-top:4px;}
+.layer-row{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--linea);
+  border-radius:7px;padding:8px 10px;margin-bottom:7px;}
+.layer-row .swatch{width:12px;height:12px;border-radius:3px;flex-shrink:0;}
+.layer-row .name{flex:1;font-size:12.5px;color:var(--plata);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;}
+.layer-row .count{font-size:10.5px;color:var(--texto-suave);}
+.layer-row button{background:none;border:none;color:var(--texto-suave);cursor:pointer;font-size:14px;padding:2px 4px;}
+.layer-row button.del:hover{color:var(--alerta);}
+.layer-row button.use-contour:hover{color:var(--marea);}
+.map-area{flex:1;position:relative;}
+#map{height:100%;width:100%;background:var(--abismo);}
+.leaflet-popup-content-wrapper{background:var(--panel2);color:var(--texto);}
+.leaflet-popup-tip{background:var(--panel2);}
+.badge{display:inline-block;font-size:10px;padding:2px 7px;border-radius:20px;background:var(--marea);
+  color:#06181a;font-weight:700;letter-spacing:.03em;text-transform:uppercase;}
+.leaflet-div-icon{background:transparent;border:none;}
+.tide-badge{background:var(--panel2);border:2px solid var(--marea);border-radius:8px;padding:3px 8px;
+  display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--plata);font-weight:700;
+  box-shadow:0 2px 8px rgba(0,0,0,.45);white-space:nowrap;cursor:pointer;}
+.tide-arrow{font-size:12px;}
+.tide-label{text-align:center;font-size:9.5px;color:var(--texto-suave);margin-top:2px;
+  text-shadow:0 1px 3px #000, 0 1px 3px #000;white-space:nowrap;}
+.tide-popup table td{padding:2px 6px 2px 0;font-size:12px;}
+.tide-popup .k{color:var(--texto-suave);}
+::selection{background:var(--marea);color:#06181a;}
+.hidden{display:none !important;}
+.status-msg{font-size:11.5px;padding:8px 10px;border-radius:6px;margin-bottom:10px;}
+.status-msg.err{background:rgba(217,112,79,.15);color:#f0a68b;border:1px solid rgba(217,112,79,.35);}
+.status-msg.ok{background:rgba(58,168,160,.15);color:#9fe0d8;border:1px solid rgba(58,168,160,.35);}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="sidebar-head">
+      <div class="eyebrow">Baja California Sur</div>
+      <h1>Marea BCS · Luna &amp; Costa</h1>
+      <div class="sub">Simulación lunar, predicción de marea y visor de capas GIS</div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="luna">Luna</button>
+      <button class="tab" data-tab="marea">Mareas</button>
+      <button class="tab" data-tab="capas">Capas</button>
+    </div>
+
+    <!-- LUNA -->
+    <div class="panel" id="panel-luna">
+      <div class="field">
+        <label>Fecha y hora (local del puerto)</label>
+        <input type="datetime-local" id="moonDatetime">
+      </div>
+      <div class="field">
+        <label>Punto de referencia</label>
+        <select id="moonPort"></select>
+      </div>
+
+      <div class="moon-stage">
+        <svg id="moonIcon" width="76" height="76" viewBox="0 0 100 100"></svg>
+        <div class="moon-readout">
+          <div class="phase-name" id="moonPhaseName">—</div>
+          <div class="illum" id="moonIllum">—</div>
+          <div class="sub" id="moonAge">—</div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="stat"><div class="k">Altitud</div><div class="v" id="moonAlt">—</div></div>
+        <div class="stat"><div class="k">Azimut</div><div class="v" id="moonAz">—</div></div>
+        <div class="stat"><div class="k">Orto lunar</div><div class="v" id="moonRise">—</div></div>
+        <div class="stat"><div class="k">Ocaso lunar</div><div class="v" id="moonSet">—</div></div>
+        <div class="stat"><div class="k">Distancia</div><div class="v" id="moonDist">—</div></div>
+        <div class="stat"><div class="k">Próxima luna llena</div><div class="v" id="moonNextFull">—</div></div>
+      </div>
+
+      <div class="note">
+        Cálculo con fórmulas astronómicas de baja precisión (posición geocéntrica de la Luna,
+        error típico &lt; 0.3°). Suficiente para planeación general; no usar para navegación de precisión.
+      </div>
+    </div>
+
+    <!-- MAREAS -->
+    <div class="panel hidden" id="panel-marea">
+      <div class="field">
+        <label>Puerto / estación</label>
+        <select id="tidePort"></select>
+      </div>
+      <div class="field">
+        <label>Fecha de inicio</label>
+        <input type="date" id="tideDate">
+      </div>
+
+      <div class="grid2">
+        <div class="stat"><div class="k">Altura actual</div><div class="v" id="tideNow">—</div></div>
+        <div class="stat"><div class="k">Tendencia</div><div class="v" id="tideTrend">—</div></div>
+        <div class="stat"><div class="k">Próxima marea alta</div><div class="v" id="tideNextHigh">—</div></div>
+        <div class="stat"><div class="k">Próxima marea baja</div><div class="v" id="tideNextLow">—</div></div>
+      </div>
+
+      <div class="chart-wrap"><canvas id="tideChart" height="170"></canvas></div>
+
+      <h3 style="font-size:13px;color:var(--plata);margin-bottom:8px;">Constituyentes armónicos</h3>
+      <div class="const-labels"><div>Nombre</div><div>Amp (m)</div><div>Fase (°)</div><div>Período (h)</div><div></div></div>
+      <div id="constList"></div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn secondary" id="addConst" style="flex:1;">+ Constituyente</button>
+        <label class="btn secondary" style="flex:1;text-align:center;cursor:pointer;">
+          Importar CSV
+          <input type="file" id="constCsv" accept=".csv" style="display:none;">
+        </label>
+      </div>
+      <div class="note" style="margin-top:12px;">
+        Los valores por puerto son <strong>ilustrativos</strong> (armónicos genéricos de demostración),
+        no provienen de una descarga en vivo de SEMAR — la Dirección General de Oceanografía Naval de SEMAR
+        publica tablas de predicción de mareas por anuario/estación, sin API pública en tiempo real.
+        Sustituye aquí las amplitudes, fases y niveles medios oficiales (Z0, M2, S2, N2, K1, O1…) del
+        anuario correspondiente, o impórtalos como CSV con columnas
+        <code>nombre,amplitud_m,fase_deg,periodo_h</code>, para obtener una predicción calibrada real.
+      </div>
+    </div>
+
+    <!-- CAPAS -->
+    <div class="panel hidden" id="panel-capas">
+      <div class="drop" id="dropZone">
+        <div class="big">Arrastra o selecciona archivos</div>
+        <div class="small">GeoJSON · KML · SHP (.zip con .shp+.dbf+.shx) · GeoPackage (.gpkg)</div>
+        <input type="file" id="fileInput" multiple accept=".geojson,.json,.kml,.zip,.gpkg" style="display:none;">
+      </div>
+      <div class="stat" style="margin-bottom:12px;">
+        <div class="k">Contorno de marea activo</div>
+        <div class="v" id="contornoActivoNombre" style="font-size:13px;">—</div>
+      </div>
+      <button class="btn secondary" id="resetContorno" style="width:100%;margin-bottom:14px;">
+        Restablecer contorno esquemático de BCS
+      </button>
+      <div id="layerStatus"></div>
+      <div id="layerList"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="btn secondary" id="fitAll" style="flex:1;">Encuadrar todo</button>
+        <button class="btn secondary" id="clearAll" style="flex:1;">Quitar todas</button>
+      </div>
+      <div class="note" style="margin-top:14px;">
+        GeoPackage se lee en el navegador con SQL.js (WebAssembly); geometrías en 2D (Point, LineString,
+        Polygon y Multi-) soportadas. Los shapefiles deben subirse comprimidos en <code>.zip</code>
+        incluyendo al menos <code>.shp</code>, <code>.shx</code> y <code>.dbf</code>.
+      </div>
+      <div class="note">
+        La línea de marea que ves sobre el mapa usa por defecto un <strong>contorno esquemático</strong>
+        de BCS (aproximado, solo para visualización). En cada capa cargada aparece un botón 〰 para
+        usar esa geometría (línea de costa o polígono real) como contorno; la altura se interpola por
+        distancia inversa entre las 5 estaciones y sus constituyentes actuales.
+      </div>
+    </div>
+  </div>
+
+  <div class="map-area"><div id="map"></div></div>
+</div>
+
+<script>
+/* ============================= MAPA BASE ============================= */
+const PUERTOS = [
+  {id:'lapaz',   nombre:'La Paz',            lat:24.1426, lon:-110.3128},
+  {id:'cabo',    nombre:'Cabo San Lucas',     lat:22.8905, lon:-109.9167},
+  {id:'loreto',  nombre:'Loreto',             lat:26.0111, lon:-111.3467},
+  {id:'santarosalia', nombre:'Santa Rosalía', lat:27.3383, lon:-112.2683},
+  {id:'lopezmateos', nombre:'Pto. Adolfo López Mateos', lat:24.8000, lon:-112.1500}
+];
+
+const map = L.map('map', {zoomControl:true}).setView([24.6,-111.0], 7);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution:'&copy; OpenStreetMap',
+  maxZoom:19
+}).addTo(map);
+
+/* Poblar selects de puerto */
+['moonPort','tidePort'].forEach(id=>{
+  const sel = document.getElementById(id);
+  PUERTOS.forEach(p=>{
+    const o = document.createElement('option');
+    o.value = p.id; o.textContent = p.nombre;
+    sel.appendChild(o);
+  });
+});
+
+/* Tabs */
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.add('hidden'));
+    t.classList.add('active');
+    document.getElementById('panel-'+t.dataset.tab).classList.remove('hidden');
+  });
+});
+
+/* ============================= ASTRONOMÍA LUNAR ============================= */
+/* Fórmulas de baja precisión (posición geocéntrica eclíptica de la Luna),
+   organizadas a partir de las series clásicas de Meeus / almanaque náutico. */
+const RAD = Math.PI/180;
+
+function diasJuliano(date){
+  // días desde J2000.0 (2000-01-01 12:00 TT), aproximando TT≈UTC
+  return (date.getTime()/86400000) - 10957.5;
+}
+function normDeg(d){ d = d % 360; return d<0 ? d+360 : d; }
+
+function posicionLunaGeocentrica(d){
+  const L = RAD*normDeg(218.316 + 13.176396*d);   // longitud eclíptica media
+  const M = RAD*normDeg(134.963 + 13.064993*d);   // anomalía media
+  const F = RAD*normDeg(93.272  + 13.229350*d);   // argumento de latitud
+
+  const lon = L + RAD*6.289*Math.sin(M);
+  const lat = RAD*5.128*Math.sin(F);
+  const dist = 385001 - 20905*Math.cos(M); // km
+
+  const eps = RAD*23.4393;
+  const ra = Math.atan2(Math.sin(lon)*Math.cos(eps) - Math.tan(lat)*Math.sin(eps), Math.cos(lon));
+  const dec = Math.asin(Math.sin(lat)*Math.cos(eps) + Math.cos(lat)*Math.sin(eps)*Math.sin(lon));
+  return {ra, dec, dist, lonEcl:lon};
+}
+
+function posicionSolGeocentrica(d){
+  const g = RAD*normDeg(357.529 + 0.98560028*d);
+  const q = normDeg(280.459 + 0.98564736*d);
+  const L = RAD*normDeg(q + 1.915*Math.sin(g) + 0.020*Math.sin(2*g));
+  const eps = RAD*23.4393;
+  const ra = Math.atan2(Math.cos(eps)*Math.sin(L), Math.cos(L));
+  const dec = Math.asin(Math.sin(eps)*Math.sin(L));
+  return {ra, dec, lonEcl:L};
+}
+
+function tiempoSiderealLocal(d, lonOeste){
+  const gst = normDeg(280.16 + 360.9856235*d);
+  return RAD*normDeg(gst - lonOeste);
+}
+
+function altAz(H, dec, latRad){
+  const alt = Math.asin(Math.sin(latRad)*Math.sin(dec) + Math.cos(latRad)*Math.cos(dec)*Math.cos(H));
+  let az = Math.atan2(Math.sin(H), Math.cos(H)*Math.sin(latRad) - Math.tan(dec)*Math.cos(latRad));
+  az = normDeg(az/RAD + 180);
+  return {alt: alt/RAD, az};
+}
+
+function altitudLunaEnFecha(date, lat, lon){
+  const d = diasJuliano(date);
+  const moon = posicionLunaGeocentrica(d);
+  const lst = tiempoSiderealLocal(d, -lon); // lon negativo en BCS -> -lon positivo (oeste)
+  const H = lst - moon.ra;
+  return altAz(H, moon.dec, lat*RAD).alt;
+}
+
+function faseLunar(date){
+  const d = diasJuliano(date);
+  const moon = posicionLunaGeocentrica(d);
+  const sol = posicionSolGeocentrica(d);
+  let elong = normDeg((moon.lonEcl - sol.lonEcl)/RAD); // 0-360, ángulo de fase geométrico simplificado
+  const fase01 = elong/360; // 0 nueva ... 0.5 llena ... 1 nueva
+  const iluminacion = (1 - Math.cos(elong*RAD))/2;
+  return {fase01, iluminacion, elong, dist: moon.dist};
+}
+
+function nombreFase(fase01){
+  const f = fase01;
+  if (f < 0.02 || f > 0.98) return 'Luna nueva';
+  if (f < 0.24) return 'Luna creciente';
+  if (f < 0.26) return 'Cuarto creciente';
+  if (f < 0.49) return 'Gibosa creciente';
+  if (f < 0.51) return 'Luna llena';
+  if (f < 0.74) return 'Gibosa menguante';
+  if (f < 0.76) return 'Cuarto menguante';
+  return 'Luna menguante';
+}
+
+function dibujarIconoLuna(svg, fase01){
+  svg.innerHTML = '';
+  const ns = 'http://www.w3.org/2000/svg';
+  const r = 42, cx = 50, cy = 50;
+  const disco = document.createElementNS(ns,'circle');
+  disco.setAttribute('cx',cx); disco.setAttribute('cy',cy); disco.setAttribute('r',r);
+  disco.setAttribute('fill','#13293D'); disco.setAttribute('stroke','#3aa8a0'); disco.setAttribute('stroke-width','2');
+  svg.appendChild(disco);
+
+  // curva de terminador: k va de -1 (nueva) a 0 (cuarto) a 1 (llena) a 0 (cuarto) a -1
+  const ang = fase01*2*Math.PI;
+  const k = -Math.cos(ang); // -1 nueva, 0 cuartos, 1 llena
+  const iluminadoDerecha = fase01 < 0.5;
+  const rx = Math.abs(k)*r;
+
+  const path = document.createElementNS(ns,'path');
+  let d;
+  if (k >= 0){
+    // gibosa/llena: base = disco completo iluminado del lado correcto, se resta/añade elipse
+    const sweepOuter = iluminadoDerecha ? 1 : 0;
+    d = `M ${cx} ${cy-r} A ${r} ${r} 0 0 ${sweepOuter} ${cx} ${cy+r} A ${rx} ${r} 0 0 ${sweepOuter?0:1} ${cx} ${cy-r} Z`;
+  } else {
+    const sweepOuter = iluminadoDerecha ? 1 : 0;
+    d = `M ${cx} ${cy-r} A ${r} ${r} 0 0 ${sweepOuter} ${cx} ${cy+r} A ${rx} ${r} 0 0 ${sweepOuter?1:0} ${cx} ${cy-r} Z`;
+  }
+  path.setAttribute('d', d);
+  path.setAttribute('fill', '#e7e3d8');
+  svg.appendChild(path);
+}
+
+function buscarCruce(date0, lat, lon, buscarSubida){
+  // muestreo cada 5 min en 24h para encontrar cruce de altitud = 0
+  let prev = altitudLunaEnFecha(date0, lat, lon);
+  let prevT = date0.getTime();
+  for(let m=5; m<=24*60; m+=5){
+    const t = new Date(date0.getTime() + m*60000);
+    const cur = altitudLunaEnFecha(t, lat, lon);
+    const subiendo = cur > prev;
+    if ((buscarSubida && prev<0 && cur>=0) || (!buscarSubida && prev>0 && cur<=0)){
+      const frac = prev/(prev-cur);
+      return new Date(prevT + frac*(t.getTime()-prevT));
+    }
+    prev = cur; prevT = t.getTime();
+  }
+  return null;
+}
+
+function fmtHora(date){
+  if(!date) return '— (no ocurre en 24h)';
+  return date.toLocaleString('es-MX', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'short'});
+}
+
+function actualizarLuna(){
+  const puerto = PUERTOS.find(p=>p.id === document.getElementById('moonPort').value) || PUERTOS[0];
+  let dtVal = document.getElementById('moonDatetime').value;
+  const date = dtVal ? new Date(dtVal) : new Date();
+
+  const {fase01, iluminacion, dist} = faseLunar(date);
+  document.getElementById('moonPhaseName').textContent = nombreFase(fase01);
+  document.getElementById('moonIllum').textContent = Math.round(iluminacion*100) + '% iluminada';
+  document.getElementById('moonAge').textContent = 'Edad lunar: ' + (fase01*29.53).toFixed(1) + ' días del ciclo sinódico';
+  dibujarIconoLuna(document.getElementById('moonIcon'), fase01);
+
+  const d = diasJuliano(date);
+  const moon = posicionLunaGeocentrica(d);
+  const lst = tiempoSiderealLocal(d, -puerto.lon);
+  const H = lst - moon.ra;
+  const {alt, az} = altAz(H, moon.dec, puerto.lat*RAD);
+  document.getElementById('moonAlt').textContent = alt.toFixed(1)+'°';
+  document.getElementById('moonAz').textContent = az.toFixed(0)+'°';
+  document.getElementById('moonDist').textContent = Math.round(moon.dist).toLocaleString('es-MX')+' km';
+
+  const orto = buscarCruce(date, puerto.lat, puerto.lon, true);
+  const ocaso = buscarCruce(date, puerto.lat, puerto.lon, false);
+  document.getElementById('moonRise').textContent = fmtHora(orto);
+  document.getElementById('moonSet').textContent = fmtHora(ocaso);
+
+  // próxima luna llena: buscar cuándo fase01 cruza 0.5
+  let t = new Date(date);
+  let prevFase = faseLunar(t).fase01;
+  let full = null;
+  for(let i=0; i<40; i++){
+    t = new Date(t.getTime() + 12*3600000);
+    const f = faseLunar(t).fase01;
+    if (prevFase < 0.5 && f >= 0.5){ full = t; break; }
+    prevFase = f;
+  }
+  document.getElementById('moonNextFull').textContent = full ? full.toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) : '—';
+}
+
+document.getElementById('moonDatetime').value = new Date().toISOString().slice(0,16);
+document.getElementById('moonPort').addEventListener('change', actualizarLuna);
+document.getElementById('moonDatetime').addEventListener('change', actualizarLuna);
+
+/* ============================= MODELO DE MAREA ARMÓNICO ============================= */
+// Constituyentes ilustrativos por puerto (NO oficiales). Períodos en horas (reales, no ilustrativos).
+const PERIODOS = {M2:12.4206012, S2:12.0, N2:12.6583475, K1:23.9344696, O1:25.8193387};
+
+const CONST_DEFAULT = {
+  lapaz: {z0:0.55, list:[
+    {n:'M2', a:0.28, f:110}, {n:'S2', a:0.10, f:135}, {n:'N2', a:0.06, f:95},
+    {n:'K1', a:0.22, f:200}, {n:'O1', a:0.17, f:160}
+  ]},
+  cabo: {z0:0.45, list:[
+    {n:'M2', a:0.20, f:95}, {n:'S2', a:0.07, f:120}, {n:'N2', a:0.04, f:80},
+    {n:'K1', a:0.19, f:190}, {n:'O1', a:0.15, f:150}
+  ]},
+  loreto: {z0:0.60, list:[
+    {n:'M2', a:0.32, f:130}, {n:'S2', a:0.12, f:150}, {n:'N2', a:0.07, f:110},
+    {n:'K1', a:0.20, f:210}, {n:'O1', a:0.16, f:170}
+  ]},
+  santarosalia: {z0:0.65, list:[
+    {n:'M2', a:0.35, f:140}, {n:'S2', a:0.14, f:160}, {n:'N2', a:0.08, f:120},
+    {n:'K1', a:0.19, f:215}, {n:'O1', a:0.15, f:175}
+  ]},
+  lopezmateos: {z0:0.80, list:[
+    {n:'M2', a:0.55, f:60}, {n:'S2', a:0.20, f:85}, {n:'N2', a:0.12, f:45},
+    {n:'K1', a:0.25, f:180}, {n:'O1', a:0.20, f:140}
+  ]}
+};
+
+let constActuales = null; // {z0, list:[{n,a,f,periodo}]} -- referencia al set del puerto activo en el panel
+let tideChart = null;
+const userConst = {}; // id_puerto -> {z0, list} vivo (conserva ediciones del usuario entre pestañas)
+
+function construirConst(id){
+  if (!userConst[id]){
+    const base = CONST_DEFAULT[id] || CONST_DEFAULT.lapaz;
+    userConst[id] = {
+      z0: base.z0,
+      list: base.list.map(c => ({n:c.n, a:c.a, f:c.f, periodo: PERIODOS[c.n] || 12.42}))
+    };
+  }
+  return userConst[id];
+}
+
+function cargarConstPuerto(id){
+  constActuales = construirConst(id);
+  pintarConstList();
+}
+
+function proximosExtremos(ahora, cset){
+  let nextHigh=null, nextLow=null;
+  for(let m=5; m<=72*60 && (!nextHigh||!nextLow); m+=5){
+    const t = new Date(ahora.getTime()+m*60000);
+    const v = alturaMarea(t, ahora, cset);
+    const t2 = new Date(ahora.getTime()+(m+5)*60000);
+    const v2 = alturaMarea(t2, ahora, cset);
+    if (!nextHigh && v2 < v){ nextHigh = t; }
+    if (!nextLow && v2 > v){ nextLow = t; }
+  }
+  return {nh: nextHigh, nl: nextLow};
+}
+
+function pintarConstList(){
+  const cont = document.getElementById('constList');
+  cont.innerHTML = '';
+  constActuales.list.forEach((c, i)=>{
+    const row = document.createElement('div');
+    row.className = 'const-row';
+    row.innerHTML = `
+      <input data-i="${i}" data-k="n" value="${c.n}">
+      <input data-i="${i}" data-k="a" type="number" step="0.01" value="${c.a}">
+      <input data-i="${i}" data-k="f" type="number" step="1" value="${c.f}">
+      <input data-i="${i}" data-k="periodo" type="number" step="0.001" value="${c.periodo}">
+      <button class="del" data-i="${i}">✕</button>`;
+    cont.appendChild(row);
+  });
+  cont.querySelectorAll('input').forEach(inp=>{
+    inp.addEventListener('input', e=>{
+      const i = +e.target.dataset.i, k = e.target.dataset.k;
+      constActuales.list[i][k] = (k==='n') ? e.target.value : parseFloat(e.target.value)||0;
+      calcularYPintarMarea();
+    });
+  });
+  cont.querySelectorAll('.del').forEach(b=>{
+    b.addEventListener('click', e=>{
+      constActuales.list.splice(+e.target.dataset.i, 1);
+      pintarConstList(); calcularYPintarMarea();
+    });
+  });
+}
+
+document.getElementById('addConst').addEventListener('click', ()=>{
+  constActuales.list.push({n:'NUEVO', a:0.10, f:0, periodo:12.42});
+  pintarConstList(); calcularYPintarMarea();
+});
+
+document.getElementById('constCsv').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    const lines = reader.result.split(/\r?\n/).filter(l=>l.trim());
+    const start = /amp/i.test(lines[0]) ? 1 : 0;
+    const nuevos = [];
+    for(let i=start;i<lines.length;i++){
+      const parts = lines[i].split(',').map(s=>s.trim());
+      if (parts.length>=4){
+        nuevos.push({n:parts[0], a:parseFloat(parts[1])||0, f:parseFloat(parts[2])||0, periodo:parseFloat(parts[3])||12.42});
+      }
+    }
+    if (nuevos.length){ constActuales.list = nuevos; pintarConstList(); calcularYPintarMarea(); }
+  };
+  reader.readAsText(file);
+});
+
+function alturaMarea(date, refDate, cset){
+  cset = cset || constActuales;
+  const h = (date.getTime()-refDate.getTime())/3600000;
+  let val = cset.z0;
+  cset.list.forEach(c=>{
+    val += c.a*Math.cos(2*Math.PI*h/c.periodo - c.f*RAD);
+  });
+  return val;
+}
+
+function calcularYPintarMarea(){
+  const dateStr = document.getElementById('tideDate').value;
+  const dia0 = dateStr ? new Date(dateStr+'T00:00:00') : new Date(new Date().toDateString());
+  const ahora = new Date();
+
+  const labels = [], valores = [];
+  const pasoMin = 15, totalH = 48;
+  for(let m=0; m<=totalH*60; m+=pasoMin){
+    const t = new Date(dia0.getTime() + m*60000);
+    labels.push(t);
+    valores.push(alturaMarea(t, dia0));
+  }
+
+  // altura actual y tendencia
+  const hActual = alturaMarea(ahora, dia0);
+  const hActualMas = alturaMarea(new Date(ahora.getTime()+5*60000), dia0);
+  document.getElementById('tideNow').textContent = hActual.toFixed(2)+' m';
+  document.getElementById('tideTrend').textContent = hActualMas > hActual ? '▲ Subiendo' : '▼ Bajando';
+
+  // próximos extremos (máximos/mínimos locales) a partir de ahora
+  let nextHigh=null, nextLow=null, prevV=alturaMarea(ahora,dia0), prevT=ahora.getTime();
+  for(let m=5; m<=72*60 && (!nextHigh||!nextLow); m+=5){
+    const t = new Date(ahora.getTime()+m*60000);
+    const v = alturaMarea(t, dia0);
+    const t2 = new Date(ahora.getTime()+(m+5)*60000);
+    const v2 = alturaMarea(t2, dia0);
+    if (!nextHigh && v2 < v){ nextHigh = t; }
+    if (!nextLow && v2 > v){ nextLow = t; }
+    prevV=v; prevT=t.getTime();
+  }
+  document.getElementById('tideNextHigh').textContent = nextHigh ? fmtHora(nextHigh) : '—';
+  document.getElementById('tideNextLow').textContent = nextLow ? fmtHora(nextLow) : '—';
+
+  const ctx = document.getElementById('tideChart').getContext('2d');
+  const dataPoints = labels.map((l,i)=>({x:l, y:valores[i]}));
+  if (tideChart) tideChart.destroy();
+  tideChart = new Chart(ctx, {
+    type:'line',
+    data:{ datasets:[{
+      label:'Altura de marea (m)', data:dataPoints, borderColor:'#3aa8a0',
+      backgroundColor:'rgba(58,168,160,.15)', fill:true, pointRadius:0, tension:.35, borderWidth:2
+    }]},
+    options:{
+      responsive:true,
+      scales:{
+        x:{ type:'time', time:{unit:'hour'}, ticks:{color:'#8fa4ae', maxTicksLimit:8}, grid:{color:'#1c3b52'} },
+        y:{ ticks:{color:'#8fa4ae'}, grid:{color:'#1c3b52'}, title:{display:true,text:'metros',color:'#8fa4ae'} }
+      },
+      plugins:{ legend:{display:false} }
+    }
+  });
+  actualizarMareasEnMapa();
+  actualizarContorno();
+}
+
+document.getElementById('tidePort').addEventListener('change', e=>{
+  cargarConstPuerto(e.target.value); calcularYPintarMarea();
+});
+document.getElementById('tideDate').addEventListener('change', calcularYPintarMarea);
+document.getElementById('tideDate').value = new Date().toISOString().slice(0,10);
+
+/* ============================= MAREAS SOBRE EL MAPA ============================= */
+const puertoMarkers = {};
+
+function crearMarcadoresMarea(){
+  PUERTOS.forEach(p=>{
+    const marker = L.marker([p.lat, p.lon], {
+      icon: L.divIcon({className:'tide-marker', html:'', iconSize:[70,34], iconAnchor:[35,17]})
+    }).addTo(map);
+
+    marker.on('click', ()=>{
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(x=>x.classList.add('hidden'));
+      document.querySelector('.tab[data-tab="marea"]').classList.add('active');
+      document.getElementById('panel-marea').classList.remove('hidden');
+      const sel = document.getElementById('tidePort');
+      sel.value = p.id;
+      sel.dispatchEvent(new Event('change'));
+    });
+
+    marker.bindPopup(()=>{
+      const now = new Date();
+      const cset = construirConst(p.id);
+      const dia0 = new Date(now.toDateString());
+      const h = alturaMarea(now, dia0, cset);
+      const hMas = alturaMarea(new Date(now.getTime()+5*60000), dia0, cset);
+      const {nh, nl} = proximosExtremos(now, cset);
+      return `<div class="tide-popup"><strong>${p.nombre}</strong><table>
+        <tr><td class="k">Altura actual</td><td>${h.toFixed(2)} m</td></tr>
+        <tr><td class="k">Tendencia</td><td>${hMas>h?'▲ Subiendo':'▼ Bajando'}</td></tr>
+        <tr><td class="k">Próx. alta</td><td>${fmtHora(nh)}</td></tr>
+        <tr><td class="k">Próx. baja</td><td>${fmtHora(nl)}</td></tr>
+        </table></div>`;
+    });
+
+    puertoMarkers[p.id] = marker;
+  });
+}
+
+function actualizarMareasEnMapa(){
+  const ahora = new Date();
+  PUERTOS.forEach(p=>{
+    const cset = construirConst(p.id);
+    const dia0 = new Date(ahora.toDateString());
+    const h = alturaMarea(ahora, dia0, cset);
+    const hMas = alturaMarea(new Date(ahora.getTime()+5*60000), dia0, cset);
+    const subiendo = hMas > h;
+    const color = subiendo ? '#3aa8a0' : '#e3b34f';
+    const flecha = subiendo ? '▲' : '▼';
+    const marker = puertoMarkers[p.id];
+    if (!marker) return;
+    marker.setIcon(L.divIcon({
+      className:'tide-marker',
+      html: `<div class="tide-badge" style="border-color:${color};">
+               <span>${h.toFixed(2)} m</span><span class="tide-arrow" style="color:${color};">${flecha}</span>
+             </div>
+             <div class="tide-label">${p.nombre}</div>`,
+      iconSize:[70,34], iconAnchor:[35,17]
+    }));
+  });
+}
+
+/* ============================= CONTORNO DE MAREA (línea a lo largo de la costa) ============================= */
+// Contorno esquemático de BCS: silueta simplificada, solo para visualización (no es un levantamiento GIS).
+const BCS_CONTORNO_DEFAULT = [
+  [-114.15,28.02],[-114.30,27.75],[-114.35,27.40],[-114.45,27.00],[-114.20,26.60],
+  [-113.55,26.30],[-112.90,25.75],[-112.45,25.20],[-112.15,24.65],[-111.90,24.30],
+  [-111.50,23.90],[-110.90,23.55],[-110.35,23.10],[-109.95,22.92],[-109.83,22.87],
+  [-109.70,23.02],[-109.55,23.35],[-109.75,23.75],[-110.05,24.05],[-110.32,24.14],
+  [-110.55,24.45],[-110.85,24.85],[-111.20,25.25],[-111.55,25.65],[-111.85,26.05],
+  [-111.98,26.65],[-112.05,26.95],[-112.15,27.15],[-112.27,27.34],[-112.55,27.55],
+  [-112.95,27.70],[-113.40,27.85],[-113.80,27.95],[-114.15,28.02]
+];
+const NOMBRES_CONST_INTERP = ['M2','S2','N2','K1','O1'];
+
+function diezmar(vertices, maxPuntos){
+  maxPuntos = maxPuntos || 300;
+  if (vertices.length <= maxPuntos) return vertices;
+  const paso = Math.ceil(vertices.length/maxPuntos);
+  const out = [];
+  for(let i=0;i<vertices.length;i+=paso) out.push(vertices[i]);
+  return out;
+}
+
+function extraerContornoDeGeoJSON(gj){
+  let mejor = null, mejorLen = 0;
+  const consid = (coords)=>{ if (coords && coords.length > mejorLen){ mejor = coords; mejorLen = coords.length; } };
+  const visit = (geom)=>{
+    if (!geom) return;
+    if (geom.type==='LineString') consid(geom.coordinates);
+    else if (geom.type==='Polygon') consid(geom.coordinates[0]);
+    else if (geom.type==='MultiLineString') geom.coordinates.forEach(consid);
+    else if (geom.type==='MultiPolygon') geom.coordinates.forEach(poly=>consid(poly[0]));
+    else if (geom.type==='GeometryCollection') geom.geometries.forEach(visit);
+  };
+  (gj.features || [gj]).forEach(f=> visit(f.geometry || f));
+  return mejor ? mejor.map(c=>[c[0], c[1]]) : null;
+}
+
+function calcularPesosIDW(vertice){
+  const dists = PUERTOS.map(p=> Math.max(0.05, Math.hypot(vertice[0]-p.lon, vertice[1]-p.lat)));
+  const inv = dists.map(d=> 1/(d*d));
+  const suma = inv.reduce((a,b)=>a+b, 0);
+  return inv.map(v=> v/suma);
+}
+
+function constInterpolado(pesos){
+  let z0 = 0;
+  const acc = {}; NOMBRES_CONST_INTERP.forEach(n=> acc[n] = {re:0, im:0});
+  PUERTOS.forEach((p,i)=>{
+    const cset = construirConst(p.id);
+    z0 += cset.z0 * pesos[i];
+    NOMBRES_CONST_INTERP.forEach(n=>{
+      const c = cset.list.find(x=>x.n===n);
+      if (c){
+        acc[n].re += pesos[i]*c.a*Math.cos(c.f*RAD);
+        acc[n].im += pesos[i]*c.a*Math.sin(c.f*RAD);
+      }
+    });
+  });
+  const list = NOMBRES_CONST_INTERP.map(n=>{
+    const re=acc[n].re, im=acc[n].im;
+    return {n, a:Math.hypot(re,im), f:normDeg(Math.atan2(im,re)/RAD), periodo:PERIODOS[n]};
+  });
+  return {z0, list};
+}
+
+function hexARgb(h){ h=h.replace('#',''); return [parseInt(h.substr(0,2),16), parseInt(h.substr(2,2),16), parseInt(h.substr(4,2),16)]; }
+function mezclarColor(t, c1, c2){
+  t = Math.max(0, Math.min(1, t));
+  const a = hexARgb(c1), b = hexARgb(c2);
+  const rgb = a.map((v,i)=> Math.round(v + (b[i]-v)*t));
+  return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+}
+
+const contornoLayer = L.layerGroup().addTo(map);
+let contornoVertices = [];
+let contornoPesos = [];
+let contornoSegmentos = [];
+
+function construirContorno(vertices, nombre){
+  contornoLayer.clearLayers();
+  contornoVertices = vertices;
+  contornoPesos = vertices.map(calcularPesosIDW);
+  contornoSegmentos = vertices.slice(0, -1).map((v,i)=>
+    L.polyline([[v[1],v[0]], [vertices[i+1][1],vertices[i+1][0]]], {color:'#3aa8a0', weight:4, opacity:.85})
+      .addTo(contornoLayer)
+  );
+  const label = document.getElementById('contornoActivoNombre');
+  if (label) label.textContent = nombre;
+}
+
+function actualizarContorno(){
+  if (!contornoVertices.length) return;
+  const ahora = new Date();
+  const dia0 = new Date(ahora.toDateString());
+  const niveles = contornoVertices.map((v,i)=>{
+    const cset = constInterpolado(contornoPesos[i]);
+    const h = alturaMarea(ahora, dia0, cset);
+    const rango = cset.list.reduce((s,c)=>s+c.a, 0) || 1;
+    return (h - cset.z0)/rango;
+  });
+  contornoSegmentos.forEach((seg,i)=>{
+    const t = ((niveles[i]+niveles[i+1])/2 + 1)/2;
+    seg.setStyle({color: mezclarColor(t, '#e3b34f', '#3aa8a0')});
+  });
+}
+
+document.getElementById('resetContorno').addEventListener('click', ()=>{
+  construirContorno(BCS_CONTORNO_DEFAULT, 'Contorno esquemático de BCS (demo)');
+  actualizarContorno();
+});
+
+/* ============================= CAPAS GIS ============================= */
+const capasGrupo = L.layerGroup().addTo(map);
+const capas = []; // {id, name, layer, count}
+const paleta = ['#e3b34f','#3aa8a0','#d9704f','#8b9dc3','#c98bd0','#7fd97f'];
+let contadorCapa = 0;
+
+function mensajeCapa(txt, tipo){
+  const el = document.getElementById('layerStatus');
+  el.innerHTML = `<div class="status-msg ${tipo}">${txt}</div>`;
+  setTimeout(()=>{ if(el.firstChild) el.innerHTML=''; }, 6000);
+}
+
+function agregarCapaGeoJSON(nombre, geojson){
+  const color = paleta[contadorCapa % paleta.length];
+  const layer = L.geoJSON(geojson, {
+    style: {color, weight:2, fillColor:color, fillOpacity:.25},
+    pointToLayer: (f, latlng)=> L.circleMarker(latlng, {radius:5, color, fillColor:color, fillOpacity:.8}),
+    onEachFeature: (f, l)=>{
+      if (f.properties && Object.keys(f.properties).length){
+        const rows = Object.entries(f.properties).slice(0,12)
+          .map(([k,v])=>`<tr><td style="padding-right:8px;color:#8fa4ae;">${k}</td><td>${v}</td></tr>`).join('');
+        l.bindPopup(`<table>${rows}</table>`);
+      }
+    }
+  }).addTo(capasGrupo);
+
+  const count = geojson.features ? geojson.features.length : 1;
+  const id = 'capa_' + (contadorCapa++);
+  capas.push({id, name:nombre, layer, count, color, geojson});
+  pintarListaCapas();
+  try{ map.fitBounds(layer.getBounds(), {maxZoom:14}); }catch(e){}
+}
+
+function pintarListaCapas(){
+  const cont = document.getElementById('layerList');
+  cont.innerHTML = '';
+  capas.forEach(c=>{
+    const row = document.createElement('div');
+    row.className = 'layer-row';
+    row.innerHTML = `<div class="swatch" style="background:${c.color};"></div>
+      <div class="name" title="${c.name}">${c.name}</div>
+      <div class="count">${c.count} obj.</div>
+      <button class="use-contour" data-id="${c.id}" title="Usar como contorno de marea">〰</button>
+      <button class="del" data-id="${c.id}" title="Quitar capa">✕</button>`;
+    row.querySelector('.del').addEventListener('click', ()=>{
+      capasGrupo.removeLayer(c.layer);
+      const idx = capas.findIndex(x=>x.id===c.id);
+      if (idx>=0) capas.splice(idx,1);
+      pintarListaCapas();
+    });
+    row.querySelector('.use-contour').addEventListener('click', ()=>{
+      const verts = extraerContornoDeGeoJSON(c.geojson);
+      if (!verts || verts.length < 2){
+        mensajeCapa(`"${c.name}" no tiene una línea o polígono utilizable como contorno.`, 'err');
+        return;
+      }
+      construirContorno(diezmar(verts), c.name);
+      actualizarContorno();
+      mensajeCapa(`Contorno de marea actualizado con "${c.name}".`, 'ok');
+    });
+    cont.appendChild(row);
+  });
+}
+
+document.getElementById('fitAll').addEventListener('click', ()=>{
+  if (!capas.length) return;
+  const group = L.featureGroup(capas.map(c=>c.layer));
+  map.fitBounds(group.getBounds(), {maxZoom:14});
+});
+document.getElementById('clearAll').addEventListener('click', ()=>{
+  capasGrupo.clearLayers(); capas.length = 0; pintarListaCapas();
+});
+
+/* --- KML → GeoJSON (parser propio, mínimo) --- */
+function kmlAGeoJSON(xmlText){
+  const xml = new DOMParser().parseFromString(xmlText, 'text/xml');
+  const features = [];
+  const parseCoords = (txt)=> txt.trim().split(/\s+/).map(tuple=>{
+    const parts = tuple.split(',').map(Number);
+    return [parts[0], parts[1]];
+  });
+
+  xml.querySelectorAll('Placemark').forEach(pm=>{
+    const name = pm.querySelector('name')?.textContent || '';
+    const desc = pm.querySelector('description')?.textContent || '';
+    const props = {name, description: desc};
+
+    const geoms = [];
+    pm.querySelectorAll('Point coordinates').forEach(c=>{
+      const [x,y] = parseCoords(c.textContent)[0];
+      geoms.push({type:'Point', coordinates:[x,y]});
+    });
+    pm.querySelectorAll('LineString coordinates').forEach(c=>{
+      geoms.push({type:'LineString', coordinates:parseCoords(c.textContent)});
+    });
+    pm.querySelectorAll('Polygon').forEach(poly=>{
+      const outer = poly.querySelector('outerBoundaryIs coordinates');
+      const rings = [];
+      if (outer) rings.push(parseCoords(outer.textContent));
+      poly.querySelectorAll('innerBoundaryIs coordinates').forEach(inn=> rings.push(parseCoords(inn.textContent)));
+      geoms.push({type:'Polygon', coordinates:rings});
+    });
+
+    if (geoms.length === 1) features.push({type:'Feature', properties:props, geometry:geoms[0]});
+    else if (geoms.length > 1) features.push({type:'Feature', properties:props, geometry:{type:'GeometryCollection', geometries:geoms}});
+  });
+
+  return {type:'FeatureCollection', features};
+}
+
+/* --- Shapefile (.zip con .shp/.dbf/.shx) → GeoJSON --- */
+function leerPuntosXY(view, offset, n){
+  const pts = [];
+  for(let i=0;i<n;i++){
+    pts.push([view.getFloat64(offset, true), view.getFloat64(offset+8, true)]);
+    offset += 16;
+  }
+  return {pts, offset};
+}
+
+function anilloArea(ring){
+  let s=0;
+  for(let i=0;i<ring.length;i++){
+    const [x1,y1]=ring[i], [x2,y2]=ring[(i+1)%ring.length];
+    s += (x2-x1)*(y2+y1);
+  }
+  return s; // negativo => sentido horario (anillo exterior en convención shapefile)
+}
+
+function parseSHP(buffer){
+  const view = new DataView(buffer);
+  const shapeType = view.getInt32(32, true);
+  const features = [];
+  let offset = 100;
+  while(offset < buffer.byteLength - 8){
+    const contentLenWords = view.getInt32(offset+4, false);
+    const contentBytes = contentLenWords*2;
+    const recStart = offset+8;
+    const type = view.getInt32(recStart, true);
+    let geom = null;
+    if (type === 0){
+      // null
+    } else if (type===1 || type===11 || type===21){ // Point
+      const x = view.getFloat64(recStart+4, true), y = view.getFloat64(recStart+12, true);
+      geom = {type:'Point', coordinates:[x,y]};
+    } else if (type===8 || type===18 || type===28){ // MultiPoint
+      const numPoints = view.getInt32(recStart+36, true);
+      const {pts} = leerPuntosXY(view, recStart+40, numPoints);
+      geom = {type:'MultiPoint', coordinates:pts};
+    } else if (type===3||type===13||type===23 || type===5||type===15||type===25){ // PolyLine / Polygon
+      const numParts = view.getInt32(recStart+36, true);
+      const numPoints = view.getInt32(recStart+40, true);
+      const partsIdx = [];
+      let po = recStart+44;
+      for(let i=0;i<numParts;i++){ partsIdx.push(view.getInt32(po, true)); po+=4; }
+      const {pts} = leerPuntosXY(view, po, numPoints);
+      const rings = partsIdx.map((start,i)=>{
+        const end = (i+1<partsIdx.length) ? partsIdx[i+1] : numPoints;
+        return pts.slice(start, end);
+      });
+      const esPoligono = (type===5||type===15||type===25);
+      geom = esPoligono ? {type:'Polygon', coordinates:rings} : (rings.length>1 ? {type:'MultiLineString', coordinates:rings} : {type:'LineString', coordinates:rings[0]});
+    }
+    if (geom) features.push(geom);
+    offset = recStart + contentBytes;
+  }
+  return {shapeType, geoms:features};
+}
+
+function parseDBF(buffer){
+  const view = new DataView(buffer);
+  const numRecords = view.getInt32(4, true);
+  const headerLen = view.getInt16(8, true);
+  const recordLen = view.getInt16(10, true);
+  const fields = [];
+  let off = 32;
+  const dec = new TextDecoder('latin1');
+  while (view.getUint8(off) !== 0x0D){
+    const nameBytes = new Uint8Array(buffer, off, 11);
+    const name = dec.decode(nameBytes).replace(/\0.*$/,'');
+    const type = String.fromCharCode(view.getUint8(off+11));
+    const len = view.getUint8(off+16);
+    fields.push({name, type, len});
+    off += 32;
+  }
+  const records = [];
+  let recOff = headerLen;
+  for(let r=0;r<numRecords;r++){
+    const bytes = new Uint8Array(buffer, recOff, recordLen);
+    const line = dec.decode(bytes);
+    let p = 1; // byte 0 = flag de borrado
+    const obj = {};
+    fields.forEach(f=>{
+      let raw = line.substr(p, f.len).trim();
+      obj[f.name] = (f.type==='N'||f.type==='F') ? (raw===''? null : parseFloat(raw)) : raw;
+      p += f.len;
+    });
+    records.push(obj);
+    recOff += recordLen;
+  }
+  return records;
+}
+
+async function shpZipAGeoJSON(arrayBuffer){
+  const zip = await JSZip.loadAsync(arrayBuffer);
+  let shpFile=null, dbfFile=null;
+  zip.forEach((path, entry)=>{
+    if (/\.shp$/i.test(path)) shpFile = entry;
+    if (/\.dbf$/i.test(path)) dbfFile = entry;
+  });
+  if (!shpFile) throw new Error('El .zip no contiene un archivo .shp');
+  const shpBuf = await shpFile.async('arraybuffer');
+  const {geoms} = parseSHP(shpBuf);
+  let atributos = [];
+  if (dbfFile){
+    const dbfBuf = await dbfFile.async('arraybuffer');
+    atributos = parseDBF(dbfBuf);
+  }
+  const features = geoms.map((g,i)=>({type:'Feature', properties: atributos[i]||{}, geometry:g}));
+  return {type:'FeatureCollection', features};
+}
+
+/* --- GeoPackage (.gpkg) → GeoJSON vía SQL.js + parser WKB propio --- */
+let SQLPromise = null;
+function getSQL(){
+  if (!SQLPromise){
+    SQLPromise = initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${f}` });
+  }
+  return SQLPromise;
+}
+
+function leerPuntoWKB(view, off, le, hasZ){
+  const x = le ? view.getFloat64(off,true) : view.getFloat64(off,false);
+  const y = le ? view.getFloat64(off+8,true) : view.getFloat64(off+8,false);
+  return {pt:[x,y], next: off+16+(hasZ?8:0)};
+}
+
+function leerAnilloWKB(view, off, le, hasZ){
+  const n = le?view.getUint32(off,true):view.getUint32(off,false); off+=4;
+  const pts = [];
+  for(let i=0;i<n;i++){ const r = leerPuntoWKB(view, off, le, hasZ); pts.push(r.pt); off = r.next; }
+  return {pts, next:off};
+}
+
+function leerGeomWKB(view, off){
+  const le = view.getUint8(off) === 1; off+=1;
+  let type = le?view.getUint32(off,true):view.getUint32(off,false); off+=4;
+  const hasZ = type >= 1000 && type < 4000;
+  const base = type % 1000;
+  if (base===1){ const r=leerPuntoWKB(view,off,le,hasZ); return {geom:{type:'Point',coordinates:r.pt}, next:r.next}; }
+  if (base===2){ const r=leerAnilloWKB(view,off,le,hasZ); return {geom:{type:'LineString',coordinates:r.pts}, next:r.next}; }
+  if (base===3){
+    const nRings = le?view.getUint32(off,true):view.getUint32(off,false); off+=4;
+    const rings=[];
+    for(let i=0;i<nRings;i++){ const r=leerAnilloWKB(view,off,le,hasZ); rings.push(r.pts); off=r.next; }
+    return {geom:{type:'Polygon',coordinates:rings}, next:off};
+  }
+  if (base===4||base===5||base===6){
+    const nGeoms = le?view.getUint32(off,true):view.getUint32(off,false); off+=4;
+    const subs=[];
+    for(let i=0;i<nGeoms;i++){ const r=leerGeomWKB(view,off); subs.push(r.geom.coordinates); off=r.next; }
+    const tipoMulti = base===4?'MultiPoint':(base===5?'MultiLineString':'MultiPolygon');
+    return {geom:{type:tipoMulti, coordinates:subs}, next:off};
+  }
+  return {geom:null, next:off};
+}
+
+function gpkgBlobAGeoJSONGeom(blob){
+  const view = new DataView(blob.buffer, blob.byteOffset, blob.byteLength);
+  // cabecera GPKG: 'G','P', version, flags
+  const flags = view.getUint8(3);
+  const envIndicator = (flags >> 1) & 0x07;
+  const envSizes = {0:0, 1:32, 2:48, 3:48, 4:64};
+  const envBytes = envSizes[envIndicator] || 0;
+  const wkbOffset = 8 + envBytes;
+  const {geom} = leerGeomWKB(view, wkbOffset);
+  return geom;
+}
+
+async function gpkgAGeoJSON(arrayBuffer){
+  const SQL = await getSQL();
+  const db = new SQL.Database(new Uint8Array(arrayBuffer));
+  const info = db.exec("SELECT table_name, column_name FROM gpkg_geometry_columns");
+  if (!info.length) throw new Error('No se encontraron tablas de geometría en el GeoPackage');
+  const capasOut = [];
+  info[0].values.forEach(([tabla, col])=>{
+    let res;
+    try{ res = db.exec(`SELECT * FROM "${tabla}"`); }catch(e){ return; }
+    if (!res.length) return;
+    const cols = res[0].columns;
+    const geomIdx = cols.indexOf(col);
+    const features = [];
+    res[0].values.forEach(row=>{
+      const props = {};
+      cols.forEach((c,i)=>{ if (i!==geomIdx) props[c]=row[i]; });
+      let geom = null;
+      try{ if (row[geomIdx]) geom = gpkgBlobAGeoJSONGeom(row[geomIdx]); }catch(e){}
+      if (geom) features.push({type:'Feature', properties:props, geometry:geom});
+    });
+    capasOut.push({tabla, geojson:{type:'FeatureCollection', features}});
+  });
+  db.close();
+  return capasOut;
+}
+
+/* --- Manejo de archivos: input + drag&drop --- */
+async function procesarArchivo(file){
+  const nombre = file.name;
+  const ext = nombre.split('.').pop().toLowerCase();
+  try{
+    if (ext === 'geojson' || ext === 'json'){
+      const txt = await file.text();
+      agregarCapaGeoJSON(nombre, JSON.parse(txt));
+      mensajeCapa(`Capa "${nombre}" cargada.`, 'ok');
+    } else if (ext === 'kml'){
+      const txt = await file.text();
+      agregarCapaGeoJSON(nombre, kmlAGeoJSON(txt));
+      mensajeCapa(`Capa "${nombre}" cargada.`, 'ok');
+    } else if (ext === 'zip'){
+      const buf = await file.arrayBuffer();
+      const gj = await shpZipAGeoJSON(buf);
+      agregarCapaGeoJSON(nombre, gj);
+      mensajeCapa(`Shapefile "${nombre}" cargado.`, 'ok');
+    } else if (ext === 'gpkg'){
+      const buf = await file.arrayBuffer();
+      const tablas = await gpkgAGeoJSON(buf);
+      tablas.forEach(t=> agregarCapaGeoJSON(`${nombre}:${t.tabla}`, t.geojson));
+      mensajeCapa(`GeoPackage "${nombre}" cargado (${tablas.length} tabla(s)).`, 'ok');
+    } else {
+      mensajeCapa(`Formato ".${ext}" no soportado.`, 'err');
+    }
+  } catch(err){
+    console.error(err);
+    mensajeCapa(`Error al leer "${nombre}": ${err.message}`, 'err');
+  }
+}
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+dropZone.addEventListener('click', ()=> fileInput.click());
+fileInput.addEventListener('change', e=>{
+  Array.from(e.target.files).forEach(procesarArchivo);
+  fileInput.value = '';
+});
+['dragover','dragenter'].forEach(ev=> dropZone.addEventListener(ev, e=>{ e.preventDefault(); dropZone.classList.add('over'); }));
+['dragleave','drop'].forEach(ev=> dropZone.addEventListener(ev, e=>{ e.preventDefault(); dropZone.classList.remove('over'); }));
+dropZone.addEventListener('drop', e=>{
+  Array.from(e.dataTransfer.files).forEach(procesarArchivo);
+});
+
+/* ============================= INICIO ============================= */
+crearMarcadoresMarea();
+construirContorno(BCS_CONTORNO_DEFAULT, 'Contorno esquemático de BCS (demo)');
+cargarConstPuerto('lapaz');
+actualizarLuna();
+calcularYPintarMarea(); // ya incluye actualizarMareasEnMapa() y actualizarContorno()
+setInterval(()=>{
+  if(!document.getElementById('panel-luna').classList.contains('hidden')) actualizarLuna();
+  actualizarMareasEnMapa();
+  actualizarContorno();
+}, 60000);
+</script>
+</body>
+</html>
